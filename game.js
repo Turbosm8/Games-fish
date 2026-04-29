@@ -220,6 +220,13 @@ async function fetchMultiplayerState() {
 
   try {
     const response = await fetch("/api/me", { cache: "no-store" });
+    if (response.status === 404) {
+      multiplayer.enabled = false;
+      setConnectionStatus("Pages 模式", false);
+      playerIdEl.textContent = "多人需本地运行 npm start";
+      renderLeaderboard([]);
+      return;
+    }
     if (!response.ok) throw new Error("Failed to load player");
     const data = await response.json();
     multiplayer.playerId = data.player.id;
@@ -231,7 +238,7 @@ async function fetchMultiplayerState() {
     connectLeaderboardStream();
   } catch (error) {
     setConnectionStatus("离线", false);
-    playerIdEl.textContent = "无法连接服务器";
+    playerIdEl.textContent = "服务器不可用";
   }
 }
 
@@ -246,7 +253,7 @@ function connectLeaderboardStream() {
     renderRoundRanking(data.roundPlayers, false);
   });
   events.addEventListener("error", () => {
-    setConnectionStatus("重连中", false);
+    setConnectionStatus("离线", false);
   });
 }
 

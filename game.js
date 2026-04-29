@@ -27,6 +27,9 @@ const multiplayer = {
   latestRoundPlayers: [],
 };
 
+const BASE_RADIUS = 28;
+const MAX_PLAYER_SCALE = 18;
+
 const world = {
   width: canvas.width,
   height: canvas.height,
@@ -46,12 +49,14 @@ const world = {
   plants: [],
 };
 
+const MAX_PLAYER_RADIUS = Math.min(BASE_RADIUS * MAX_PLAYER_SCALE, Math.min(world.width, world.height) * 0.42);
+
 const player = {
   x: canvas.width * 0.35,
   y: canvas.height * 0.5,
-  radius: 28,
-  mass: 1,
-  speed: 330,
+  radius: BASE_RADIUS,
+  mass: 0,
+  speed: 360,
   angle: 0,
   targetAngle: 0,
   invincible: 1.2,
@@ -59,6 +64,221 @@ const player = {
 };
 
 const fishColors = ["#ffcd5d", "#ff8f70", "#9d7cff", "#c5f467", "#f28cff", "#ff7aa8"];
+
+const fishSpecies = [
+  {
+    id: "crucian",
+    label: "鲫鱼",
+    bodyRatio: 1.9,
+    headRatio: 0.22,
+    tail: "forked",
+    tailSize: 0.22,
+    finStyle: "shortSoft",
+    palette: { main: "#B8BFC6", secondary: "#8A7A55", accent: "#E2C76E" },
+    pattern: "subtleScales",
+    eyePos: { x: 0.18, y: 0.08 },
+  },
+  {
+    id: "carp",
+    label: "鲤鱼",
+    bodyRatio: 2.1,
+    headRatio: 0.24,
+    tail: "forked",
+    tailSize: 0.24,
+    finStyle: "longDorsal",
+    palette: { main: "#9B7A4A", secondary: "#6E5A3D", accent: "#D7B46A" },
+    pattern: "largeScales",
+    eyePos: { x: 0.18, y: 0.06 },
+  },
+  {
+    id: "grassCarp",
+    label: "草鱼",
+    bodyRatio: 3.6,
+    headRatio: 0.23,
+    tail: "forked",
+    tailSize: 0.25,
+    finStyle: "sleek",
+    palette: { main: "#7A8A8B", secondary: "#DDE5E6", accent: "#4E5B5C" },
+    pattern: "darkBackLightBelly",
+    eyePos: { x: 0.17, y: 0.05 },
+  },
+  {
+    id: "silverCarp",
+    label: "鲢鱼",
+    bodyRatio: 2.7,
+    headRatio: 0.28,
+    tail: "forked",
+    tailSize: 0.25,
+    finStyle: "sleek",
+    palette: { main: "#D6DEE3", secondary: "#8E9AA3", accent: "#FFFFFF" },
+    pattern: "metallic",
+    eyePos: { x: 0.16, y: 0.05 },
+  },
+  {
+    id: "catfish",
+    label: "鲶鱼",
+    bodyRatio: 2.6,
+    headRatio: 0.3,
+    tail: "rounded",
+    tailSize: 0.18,
+    finStyle: "whiskers",
+    palette: { main: "#4B4A46", secondary: "#2F2E2B", accent: "#8A7E6B" },
+    pattern: "none",
+    eyePos: { x: 0.15, y: 0.02 },
+    extras: { barbels: 4 },
+  },
+  {
+    id: "tilapia",
+    label: "罗非鱼",
+    bodyRatio: 2.2,
+    headRatio: 0.24,
+    tail: "truncate",
+    tailSize: 0.2,
+    finStyle: "spinyDorsal",
+    palette: { main: "#7E8C8A", secondary: "#566463", accent: "#BFC9C8" },
+    pattern: "verticalBars",
+    eyePos: { x: 0.18, y: 0.07 },
+  },
+  {
+    id: "goldfish",
+    label: "金鱼",
+    bodyRatio: 1.7,
+    headRatio: 0.22,
+    tail: "rounded",
+    tailSize: 0.35,
+    finStyle: "flowy",
+    palette: { main: "#F26A2E", secondary: "#F7C6A6", accent: "#FFFFFF" },
+    pattern: "solidOrBicolor",
+    eyePos: { x: 0.2, y: 0.08 },
+  },
+  {
+    id: "trout",
+    label: "虹鳟",
+    bodyRatio: 3.2,
+    headRatio: 0.24,
+    tail: "forked",
+    tailSize: 0.22,
+    finStyle: "sleek",
+    palette: { main: "#7E8A5A", secondary: "#C7D0C8", accent: "#D46A7A" },
+    pattern: "speckles+pinkStripe",
+    eyePos: { x: 0.18, y: 0.06 },
+  },
+  {
+    id: "mackerel",
+    label: "鲭鱼",
+    bodyRatio: 4.2,
+    headRatio: 0.22,
+    tail: "forked",
+    tailSize: 0.24,
+    finStyle: "finlets",
+    palette: { main: "#2E6F7E", secondary: "#D9E3E8", accent: "#1F3F46" },
+    pattern: "wavyBackStripes",
+    eyePos: { x: 0.17, y: 0.05 },
+  },
+  {
+    id: "sardine",
+    label: "沙丁鱼",
+    bodyRatio: 3.6,
+    headRatio: 0.2,
+    tail: "forked",
+    tailSize: 0.22,
+    finStyle: "minimal",
+    palette: { main: "#DDE6EE", secondary: "#6F8796", accent: "#FFFFFF" },
+    pattern: "metallic",
+    eyePos: { x: 0.17, y: 0.05 },
+  },
+  {
+    id: "tuna",
+    label: "金枪鱼",
+    bodyRatio: 4.8,
+    headRatio: 0.23,
+    tail: "lunate",
+    tailSize: 0.26,
+    finStyle: "finlets+stout",
+    palette: { main: "#1E3F66", secondary: "#DDE6F0", accent: "#0F1F2E" },
+    pattern: "darkBackLightBelly",
+    eyePos: { x: 0.16, y: 0.05 },
+  },
+  {
+    id: "salmon",
+    label: "三文鱼",
+    bodyRatio: 3.8,
+    headRatio: 0.24,
+    tail: "forked",
+    tailSize: 0.23,
+    finStyle: "adiposeFin",
+    palette: { main: "#C9D2DA", secondary: "#6C7A86", accent: "#F08A7A" },
+    pattern: "sparseSpots",
+    eyePos: { x: 0.17, y: 0.05 },
+  },
+  {
+    id: "seabass",
+    label: "海鲈",
+    bodyRatio: 3.0,
+    headRatio: 0.26,
+    tail: "truncate",
+    tailSize: 0.2,
+    finStyle: "spinyDorsal",
+    palette: { main: "#8D98A1", secondary: "#DDE4EA", accent: "#2F3438" },
+    pattern: "subtleGradient",
+    eyePos: { x: 0.18, y: 0.06 },
+  },
+  {
+    id: "clownfish",
+    label: "小丑鱼",
+    bodyRatio: 2.0,
+    headRatio: 0.24,
+    tail: "rounded",
+    tailSize: 0.22,
+    finStyle: "roundedFins",
+    palette: { main: "#F47A21", secondary: "#FFFFFF", accent: "#1A1A1A" },
+    pattern: "3WhiteBands",
+    eyePos: { x: 0.2, y: 0.08 },
+  },
+  {
+    id: "lionfish",
+    label: "狮子鱼",
+    bodyRatio: 2.4,
+    headRatio: 0.26,
+    tail: "rounded",
+    tailSize: 0.2,
+    finStyle: "longSpines+fanPectoral",
+    palette: { main: "#B24A2D", secondary: "#F3E6D2", accent: "#5B2A1D" },
+    pattern: "verticalStripes",
+    eyePos: { x: 0.18, y: 0.07 },
+  },
+];
+
+const playerSpecies = fishSpecies.find((item) => item.id === "salmon") || fishSpecies[0];
+
+function mulberry32(seed) {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let x = t;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function pickFishSpecies(radius) {
+  if (radius < 16) return Math.random() < 0.55 ? "sardine" : "clownfish";
+  if (radius < 26) return Math.random() < 0.4 ? "crucian" : Math.random() < 0.7 ? "tilapia" : "goldfish";
+  if (radius < 44) return Math.random() < 0.4 ? "trout" : Math.random() < 0.7 ? "mackerel" : "seabass";
+  if (radius < 72) return Math.random() < 0.45 ? "carp" : Math.random() < 0.8 ? "salmon" : "catfish";
+  if (radius < 104) return Math.random() < 0.55 ? "grassCarp" : "silverCarp";
+  return Math.random() < 0.7 ? "tuna" : "catfish";
+}
+
+function getFishSpecies(id) {
+  return fishSpecies.find((item) => item.id === id) || fishSpecies[0];
+}
+
+function playerScaleFromMass(mass) {
+  const g = Math.max(0, mass);
+  return 1 + Math.pow(g, 0.6) * 0.17;
+}
 
 function random(min, max) {
   return Math.random() * (max - min) + min;
@@ -84,14 +304,14 @@ function resetGame() {
 
   player.x = world.width * 0.35;
   player.y = world.height * 0.5;
-  player.mass = 1;
-  player.radius = 28;
-  player.speed = 330;
+  player.mass = 0;
+  player.radius = BASE_RADIUS;
+  player.speed = 360;
   player.angle = 0;
   player.invincible = 1.2;
 
   makePlants();
-  for (let i = 0; i < 14; i += 1) spawnFish(true);
+  for (let i = 0; i < 22; i += 1) spawnFish(true);
   for (let i = 0; i < 30; i += 1) spawnBubble(true);
   updateHud();
   reportScore(false, true);
@@ -109,16 +329,21 @@ function makePlants() {
 }
 
 function spawnFish(initial = false) {
-  const playerScale = player.radius / 28;
+  const playerScale = player.radius / BASE_RADIUS;
   const side = Math.random() > 0.5 ? "left" : "right";
   const sizeBias = Math.random();
-  const radius =
-    sizeBias < 0.62
-      ? random(12, player.radius * 0.88)
-      : random(player.radius * 0.92, player.radius * 1.65);
-  const safeRadius = clamp(radius, 10, 104);
-  const speed = random(55, 170) + Math.min(playerScale * 12, 70);
+  const scaleBand = sizeBias < 0.5 ? 0 : sizeBias < 0.86 ? 1 : 2;
+  const radiusBase =
+    scaleBand === 0
+      ? random(8, Math.max(12, player.radius * 0.72))
+      : scaleBand === 1
+        ? random(player.radius * 0.65, player.radius * 1.08)
+        : random(player.radius * 1.08, player.radius * (Math.random() < 0.78 ? 2.05 : 2.85));
+  const maxRadius = clamp(world.height * 0.38 + playerScale * 6, 110, Math.min(world.height * 0.46, MAX_PLAYER_RADIUS * 0.95));
+  const safeRadius = clamp(radiusBase, 7, maxRadius);
+  const speed = random(58, 176) + Math.min(playerScale * 10, 92);
   const direction = side === "left" ? 1 : -1;
+  const speciesId = pickFishSpecies(safeRadius);
 
   world.fishes.push({
     x: initial ? random(0, world.width) : side === "left" ? -120 : world.width + 120,
@@ -127,6 +352,8 @@ function spawnFish(initial = false) {
     speed,
     direction,
     color: fishColors[Math.floor(random(0, fishColors.length))],
+    species: getFishSpecies(speciesId),
+    seed: Math.floor(random(1, 2 ** 31 - 1)),
     wave: random(0, Math.PI * 2),
     wobble: random(10, 38),
     edible: safeRadius < player.radius * 0.92,
@@ -160,7 +387,7 @@ function hideOverlay() {
 
 function updateHud() {
   scoreEl.textContent = String(world.score);
-  sizeEl.textContent = `${(player.radius / 28).toFixed(1)}x`;
+  sizeEl.textContent = `${(player.radius / BASE_RADIUS).toFixed(1)}x`;
   comboEl.textContent = String(world.combo);
 }
 
@@ -270,7 +497,7 @@ async function reportScore(ended = false, force = false) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         score: world.score,
-        size: player.radius / 28,
+        size: player.radius / BASE_RADIUS,
         ended,
       }),
       keepalive: ended,
@@ -330,9 +557,9 @@ function eatFish(fish) {
   world.score += points;
   world.combo += 1;
   world.comboTimer = 2.1;
-  player.mass += fish.radius / 70;
-  player.radius = clamp(28 + player.mass * 6.4, 28, 122);
-  player.speed = clamp(340 - player.radius * 0.82, 220, 330);
+  player.mass += fish.radius / Math.max(16, player.radius * 0.55);
+  player.radius = clamp(BASE_RADIUS * playerScaleFromMass(player.mass), BASE_RADIUS, MAX_PLAYER_RADIUS);
+  player.speed = clamp(380 - player.radius * 0.95, 120, 360);
   updateHud();
   reportScore();
 }
@@ -343,7 +570,7 @@ function endGame() {
   setOverlay(
     "游戏结束",
     `最终得分 ${world.score}`,
-    `你长到了 ${(player.radius / 28).toFixed(1)}x。避开红色危险边缘的鱼，先吃更小的鱼继续成长。`,
+    `你长到了 ${(player.radius / BASE_RADIUS).toFixed(1)}x。避开红色危险边缘的鱼，先吃更小的鱼继续成长。`,
   );
   roundRankingEl.innerHTML = "<h3>本局排行榜</h3><p>同步分数中</p>";
   roundRankingEl.classList.remove("hidden");
@@ -400,9 +627,9 @@ function updatePlayer(dt) {
 
 function updateFishes(dt) {
   world.spawnTimer -= dt;
-  if (world.spawnTimer <= 0 && world.fishes.length < 30) {
+  if (world.spawnTimer <= 0 && world.fishes.length < 46) {
     spawnFish();
-    world.spawnTimer = random(0.28, 0.72);
+    world.spawnTimer = random(0.22, 0.62);
   }
 
   for (let i = world.fishes.length - 1; i >= 0; i -= 1) {
@@ -500,78 +727,338 @@ function drawBackground(time) {
   }
 }
 
+function createFishBodyPath(halfLength, halfHeight) {
+  const headX = halfLength;
+  const midX = halfLength * 0.12;
+  const tailX = -halfLength;
+  const tailPinchX = -halfLength * 0.62;
+  const tailPinchY = halfHeight * 0.36;
+  const path = new Path2D();
+  path.moveTo(headX, 0);
+  path.bezierCurveTo(halfLength * 0.82, -halfHeight * 0.92, midX, -halfHeight, tailPinchX, -halfHeight * 0.58);
+  path.bezierCurveTo(tailX * 0.92, -halfHeight * 0.45, tailX, -tailPinchY, tailX, 0);
+  path.bezierCurveTo(tailX, tailPinchY, tailX * 0.92, halfHeight * 0.45, tailPinchX, halfHeight * 0.58);
+  path.bezierCurveTo(midX, halfHeight, halfLength * 0.82, halfHeight * 0.92, headX, 0);
+  path.closePath();
+  return path;
+}
+
+function drawScaleTexture(bodyPath, halfLength, halfHeight, radius, density, alpha) {
+  ctx.save();
+  ctx.clip(bodyPath);
+  ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+  ctx.lineWidth = Math.max(0.7, radius * 0.012);
+  const rows = Math.max(3, Math.floor(density));
+  for (let row = 0; row < rows; row += 1) {
+    const t = rows === 1 ? 0 : row / (rows - 1);
+    const y = -halfHeight * 0.62 + t * halfHeight * 1.24;
+    const cols = Math.max(6, Math.floor((halfLength / Math.max(10, radius)) * 9));
+    for (let col = 0; col < cols; col += 1) {
+      const x = -halfLength * 0.68 + (col / cols) * halfLength * 1.38 + (row % 2 ? radius * 0.14 : 0);
+      const r = radius * (0.09 + (row % 3) * 0.01);
+      ctx.beginPath();
+      ctx.arc(x, y, r, Math.PI * 0.15, Math.PI * 0.85);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawFish(fish, isPlayer = false) {
   const direction = isPlayer ? Math.cos(player.angle) >= 0 ? 1 : -1 : fish.direction;
   const radius = fish.radius;
-  const tail = Math.sin((fish.wave || performance.now() * 0.004) * 2.2) * radius * 0.13;
   const dangerous = !isPlayer && !fish.edible;
+  const species = (isPlayer ? playerSpecies : fish.species) || playerSpecies;
+  const seed = fish.seed || 1;
+  const rand = mulberry32(seed);
+  const waveSource = fish.wave || performance.now() * 0.004;
+  const tailWave = Math.sin(waveSource * 2.2) * radius * 0.12;
 
   ctx.save();
   ctx.translate(fish.x, fish.y);
   if (isPlayer) ctx.rotate(player.angle);
   else if (direction < 0) ctx.scale(-1, 1);
 
-  const playerGradient = ctx.createLinearGradient(-radius, -radius, radius, radius);
-  playerGradient.addColorStop(0, "#f7ffff");
-  playerGradient.addColorStop(0.28, "#18e0ff");
-  playerGradient.addColorStop(1, "#0674ff");
+  const halfHeight = radius;
+  const halfLength = radius * species.bodyRatio;
+  const tailLength = Math.max(radius * 0.9, halfLength * (species.tailSize || 0.22));
+  const tailBaseX = -halfLength * 0.95;
+  const headX = halfLength * 0.93;
 
-  ctx.fillStyle = isPlayer ? playerGradient : dangerous ? "#ff6b6b" : fish.color;
-  ctx.strokeStyle = isPlayer ? "rgba(255, 255, 255, 0.9)" : dangerous ? "rgba(255, 255, 255, 0.5)" : "rgba(255, 255, 255, 0.3)";
-  ctx.lineWidth = Math.max(2, radius * 0.06);
+  const bodyPath = createFishBodyPath(halfLength, halfHeight);
+
+  const gBase = ctx.createLinearGradient(headX, -halfHeight, -halfLength * 0.9, halfHeight);
   if (isPlayer) {
-    ctx.shadowColor = "rgba(24, 224, 255, 0.8)";
-    ctx.shadowBlur = 18;
+    gBase.addColorStop(0, "#f7ffff");
+    gBase.addColorStop(0.28, "#18e0ff");
+    gBase.addColorStop(1, "#0674ff");
+  } else {
+    gBase.addColorStop(0, species.palette?.main || fish.color);
+    gBase.addColorStop(0.55, species.palette?.secondary || fish.color);
+    gBase.addColorStop(1, species.palette?.main || fish.color);
   }
 
-  ctx.beginPath();
-  ctx.ellipse(0, 0, radius * (isPlayer ? 1.18 : 1.28), radius * (isPlayer ? 0.82 : 0.76), 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
+  ctx.fillStyle = gBase;
+  ctx.strokeStyle = isPlayer ? "rgba(255, 255, 255, 0.62)" : "rgba(0, 0, 0, 0.18)";
+  ctx.lineWidth = Math.max(1, radius * 0.028);
+  if (isPlayer) {
+    ctx.shadowColor = "rgba(24, 224, 255, 0.65)";
+    ctx.shadowBlur = 16;
+  }
+  ctx.fill(bodyPath);
+  ctx.stroke(bodyPath);
   ctx.shadowBlur = 0;
 
+  if (!isPlayer) {
+    ctx.save();
+    ctx.clip(bodyPath);
+    const backShade = ctx.createLinearGradient(0, -halfHeight, 0, halfHeight);
+    backShade.addColorStop(0, "rgba(0, 0, 0, 0.34)");
+    backShade.addColorStop(0.45, "rgba(0, 0, 0, 0)");
+    backShade.addColorStop(1, "rgba(255, 255, 255, 0.06)");
+    ctx.fillStyle = backShade;
+    ctx.fillRect(-halfLength * 1.05, -halfHeight * 1.05, halfLength * 2.1, halfHeight * 2.1);
+
+    const spec = ctx.createLinearGradient(headX, -halfHeight * 0.25, -halfLength, halfHeight * 0.65);
+    spec.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+    spec.addColorStop(0.35, "rgba(255, 255, 255, 0.0)");
+    ctx.fillStyle = spec;
+    ctx.beginPath();
+    ctx.ellipse(halfLength * 0.05, -halfHeight * 0.18, halfLength * 0.75, halfHeight * 0.18, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  const tailHalf = halfHeight * (species.tail === "lunate" ? 0.85 : 0.62);
   ctx.beginPath();
-  ctx.moveTo(-radius * (isPlayer ? 1.02 : 1.1), 0);
-  ctx.lineTo(-radius * (isPlayer ? 1.72 : 1.78), -radius * (isPlayer ? 0.72 : 0.58) + tail);
-  ctx.lineTo(-radius * (isPlayer ? 1.42 : 1.68), 0);
-  ctx.lineTo(-radius * (isPlayer ? 1.72 : 1.68), radius * (isPlayer ? 0.72 : 0.58) + tail);
+  if (species.tail === "rounded") {
+    ctx.moveTo(tailBaseX, -tailHalf);
+    ctx.quadraticCurveTo(tailBaseX - tailLength * 0.75, 0 + tailWave, tailBaseX, tailHalf);
+    ctx.quadraticCurveTo(tailBaseX - tailLength * 0.2, 0 + tailWave, tailBaseX, -tailHalf);
+  } else if (species.tail === "truncate") {
+    ctx.moveTo(tailBaseX, -tailHalf);
+    ctx.lineTo(tailBaseX - tailLength, -tailHalf * 0.75 + tailWave);
+    ctx.lineTo(tailBaseX - tailLength, tailHalf * 0.75 + tailWave);
+    ctx.lineTo(tailBaseX, tailHalf);
+  } else if (species.tail === "pointed") {
+    ctx.moveTo(tailBaseX, -tailHalf);
+    ctx.lineTo(tailBaseX - tailLength, 0 + tailWave);
+    ctx.lineTo(tailBaseX, tailHalf);
+  } else {
+    const notch = tailHalf * (species.tail === "lunate" ? 0.65 : 0.42);
+    ctx.moveTo(tailBaseX, 0);
+    ctx.lineTo(tailBaseX - tailLength, -tailHalf + tailWave);
+    ctx.lineTo(tailBaseX - tailLength + notch, 0 + tailWave * 0.4);
+    ctx.lineTo(tailBaseX - tailLength, tailHalf + tailWave);
+  }
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
 
-  if (isPlayer) {
-    ctx.fillStyle = "#ffd95c";
-    ctx.strokeStyle = "rgba(4, 19, 28, 0.35)";
-    ctx.lineWidth = Math.max(1.5, radius * 0.035);
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.18, -radius * 0.78);
-    ctx.lineTo(radius * 0.08, -radius * 1.18);
-    ctx.lineTo(radius * 0.34, -radius * 0.72);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+  const finColor = isPlayer ? "rgba(255, 255, 255, 0.55)" : `rgba(255, 255, 255, ${dangerous ? 0.22 : 0.18})`;
+  ctx.fillStyle = finColor;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.lineWidth = Math.max(1, radius * 0.03);
 
-    ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+  if (species.finStyle?.includes("spinyDorsal") || species.finStyle?.includes("longDorsal")) {
+    const spikes = species.finStyle.includes("spinyDorsal") ? 6 : 3;
+    for (let i = 0; i < spikes; i += 1) {
+      const t = i / (spikes - 1 || 1);
+      const x = -halfLength * 0.15 + t * halfLength * 0.8;
+      const h = halfHeight * (species.finStyle.includes("spinyDorsal") ? 0.62 : 0.85) * (0.85 + rand() * 0.3);
+      ctx.beginPath();
+      ctx.moveTo(x - radius * 0.22, -halfHeight * 0.82);
+      ctx.lineTo(x + radius * 0.12, -halfHeight - h);
+      ctx.lineTo(x + radius * 0.26, -halfHeight * 0.76);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  if (species.finStyle?.includes("finlets")) {
+    for (let i = 0; i < 4; i += 1) {
+      const x = -halfLength * 0.55 - i * radius * 0.32;
+      ctx.beginPath();
+      ctx.moveTo(x, -halfHeight * 0.58);
+      ctx.lineTo(x - radius * 0.18, -halfHeight * 0.92);
+      ctx.lineTo(x + radius * 0.18, -halfHeight * 0.62);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  if (species.finStyle?.includes("longSpines")) {
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+    ctx.lineWidth = Math.max(1, radius * 0.018);
+    for (let i = 0; i < 10; i += 1) {
+      const t = i / 9;
+      const x = -halfLength * 0.1 + t * halfLength * 0.7;
+      const h = halfHeight * (1.0 + rand() * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(x, -halfHeight * 0.72);
+      ctx.lineTo(x - radius * 0.1, -halfHeight - h);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
     ctx.beginPath();
-    ctx.ellipse(radius * 0.08, radius * 0.25, radius * 0.62, radius * 0.16, -0.08, 0, Math.PI * 2);
+    ctx.ellipse(halfLength * 0.05, halfHeight * 0.25, halfLength * 0.28, halfHeight * 0.55, 0.25, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.24)";
+  ctx.fillStyle = finColor;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.lineWidth = Math.max(1, radius * 0.03);
   ctx.beginPath();
-  ctx.ellipse(radius * 0.12, -radius * 0.24, radius * 0.55, radius * 0.14, -0.25, 0, Math.PI * 2);
+  ctx.ellipse(halfLength * 0.18, halfHeight * 0.38, halfLength * 0.22, halfHeight * 0.28, -0.55, 0, Math.PI * 2);
   ctx.fill();
 
+  if (species.pattern && species.pattern !== "none") {
+    ctx.save();
+    ctx.clip(bodyPath);
+    if (species.pattern.includes("verticalBars") || species.pattern.includes("verticalStripes")) {
+      const bars = 6;
+      for (let i = 0; i < bars; i += 1) {
+        const t = i / (bars - 1);
+        const x = -halfLength * 0.55 + t * halfLength * 1.1;
+        ctx.fillStyle = `rgba(0, 0, 0, ${species.pattern.includes("lion") ? 0.18 : 0.14})`;
+        ctx.fillRect(x - radius * 0.14, -halfHeight, radius * 0.16, halfHeight * 2);
+      }
+      ctx.fillStyle = `rgba(255, 255, 255, 0.14)`;
+      ctx.fillRect(-halfLength * 0.65, -halfHeight * 0.22, halfLength * 1.3, halfHeight * 0.16);
+    } else if (species.pattern === "3WhiteBands") {
+      const bands = [-0.34, 0.02, 0.36];
+      for (const band of bands) {
+        const x = -halfLength * 0.1 + band * halfLength;
+        ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+        ctx.fillRect(x - halfLength * 0.12, -halfHeight, halfLength * 0.18, halfHeight * 2);
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+        ctx.lineWidth = Math.max(1, radius * 0.02);
+        ctx.strokeRect(x - halfLength * 0.12, -halfHeight, halfLength * 0.18, halfHeight * 2);
+      }
+    } else if (species.pattern.includes("speckles")) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.18)";
+      for (let i = 0; i < 18; i += 1) {
+        const x = -halfLength * 0.45 + rand() * halfLength * 0.95;
+        const y = -halfHeight * 0.45 + rand() * halfHeight * 0.9;
+        const r = Math.max(1.2, radius * (0.018 + rand() * 0.02));
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = `rgba(212, 106, 122, 0.35)`;
+      ctx.fillRect(-halfLength * 0.55, -halfHeight * 0.12, halfLength * 1.1, halfHeight * 0.22);
+    } else if (species.pattern === "wavyBackStripes") {
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
+      ctx.lineWidth = Math.max(1, radius * 0.02);
+      for (let i = 0; i < 5; i += 1) {
+        const y = -halfHeight * 0.6 + i * halfHeight * 0.18;
+        ctx.beginPath();
+        for (let x = -halfLength * 0.7; x <= halfLength * 0.4; x += radius * 0.35) {
+          const wave = Math.sin(x * 0.04 + i * 0.9 + waveSource * 3) * radius * 0.08;
+          if (x === -halfLength * 0.7) ctx.moveTo(x, y + wave);
+          else ctx.lineTo(x, y + wave);
+        }
+        ctx.stroke();
+      }
+    } else if (species.pattern === "sparseSpots") {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+      for (let i = 0; i < 10; i += 1) {
+        const x = -halfLength * 0.4 + rand() * halfLength * 0.9;
+        const y = -halfHeight * 0.4 + rand() * halfHeight * 0.8;
+        const r = Math.max(1.1, radius * (0.016 + rand() * 0.02));
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (species.pattern === "subtleScales") {
+      drawScaleTexture(bodyPath, halfLength, halfHeight, radius, 5 + radius * 0.02, 0.12);
+    } else if (species.pattern === "largeScales") {
+      drawScaleTexture(bodyPath, halfLength, halfHeight, radius, 4 + radius * 0.015, 0.16);
+    } else if (species.pattern === "metallic") {
+      const sheen = ctx.createLinearGradient(headX, -halfHeight, -halfLength, halfHeight);
+      sheen.addColorStop(0, "rgba(255, 255, 255, 0.55)");
+      sheen.addColorStop(0.25, "rgba(255, 255, 255, 0.12)");
+      sheen.addColorStop(0.7, "rgba(0, 0, 0, 0.08)");
+      sheen.addColorStop(1, "rgba(255, 255, 255, 0.08)");
+      ctx.fillStyle = sheen;
+      ctx.fillRect(-halfLength * 1.05, -halfHeight * 1.05, halfLength * 2.1, halfHeight * 2.1);
+    } else if (species.pattern === "darkBackLightBelly") {
+      const shade = ctx.createLinearGradient(0, -halfHeight, 0, halfHeight);
+      shade.addColorStop(0, "rgba(0, 0, 0, 0.28)");
+      shade.addColorStop(0.55, "rgba(0, 0, 0, 0)");
+      shade.addColorStop(1, "rgba(255, 255, 255, 0.08)");
+      ctx.fillStyle = shade;
+      ctx.fillRect(-halfLength * 1.05, -halfHeight * 1.05, halfLength * 2.1, halfHeight * 2.1);
+    }
+    ctx.restore();
+  }
+
+  const eyeX = headX - halfLength * (species.eyePos?.x || 0.18);
+  const eyeY = -halfHeight * (species.eyePos?.y || 0.07);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, Math.max(2, radius * 0.095), 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = "#06101a";
   ctx.beginPath();
-  ctx.arc(radius * 0.72, -radius * 0.18, Math.max(2.5, radius * 0.09), 0, Math.PI * 2);
+  ctx.arc(eyeX + radius * 0.016, eyeY + radius * 0.01, Math.max(1.4, radius * 0.055), 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.28)";
+  ctx.lineWidth = Math.max(1, radius * 0.02);
+  ctx.beginPath();
+  ctx.arc(headX + radius * 0.06, halfHeight * 0.08, radius * 0.18, -0.2, 0.7);
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
+  ctx.lineWidth = Math.max(1, radius * 0.018);
+  for (let i = 0; i < 3; i += 1) {
+    const t = i / 2;
+    const x = halfLength * 0.32 - t * halfLength * 0.12;
+    ctx.beginPath();
+    ctx.arc(x, -halfHeight * 0.08, halfHeight * 0.55, Math.PI * 0.92, Math.PI * 1.08);
+    ctx.stroke();
+  }
+
+  if (species.finStyle?.includes("whiskers") || species.extras?.barbels) {
+    const count = species.extras?.barbels || 4;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.45)";
+    ctx.lineWidth = Math.max(1, radius * 0.02);
+    for (let i = 0; i < count; i += 1) {
+      const t = i / (count - 1 || 1);
+      const y = -halfHeight * 0.06 + t * halfHeight * 0.22;
+      ctx.beginPath();
+      ctx.moveTo(headX + radius * 0.02, y);
+      ctx.quadraticCurveTo(headX + radius * 0.42, y - radius * 0.18, headX + radius * 0.85, y + radius * 0.12);
+      ctx.stroke();
+    }
+  }
+
+  if (isPlayer) {
+    ctx.fillStyle = "#ffd95c";
+    ctx.strokeStyle = "rgba(4, 19, 28, 0.35)";
+    ctx.lineWidth = Math.max(1.5, radius * 0.03);
+    ctx.beginPath();
+    ctx.moveTo(halfLength * 0.04, -halfHeight * 1.05);
+    ctx.lineTo(halfLength * 0.22, -halfHeight * 1.42);
+    ctx.lineTo(halfLength * 0.4, -halfHeight * 1.0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (dangerous) {
+    ctx.strokeStyle = "rgba(255, 96, 96, 0.72)";
+    ctx.lineWidth = Math.max(2, radius * 0.045);
+    ctx.stroke(bodyPath);
+  }
 
   if (isPlayer && player.invincible > 0) {
     ctx.strokeStyle = `rgba(255, 255, 255, ${0.22 + Math.sin(performance.now() * 0.016) * 0.14})`;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.ellipse(0, 0, radius * 1.48, radius * 0.94, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, halfLength * 1.05, halfHeight * 1.1, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
 
@@ -647,7 +1134,7 @@ function draw(time) {
   drawBubbles();
   const sorted = [...world.fishes].sort((a, b) => a.radius - b.radius);
   for (const fish of sorted) drawFish(fish);
-  drawFish({ ...player, wave: time * 0.004, direction: 1 }, true);
+  drawFish({ ...player, wave: time * 0.004, direction: 1, species: playerSpecies, seed: 7777 }, true);
   drawPlayerMarker();
   drawWarnings();
 }

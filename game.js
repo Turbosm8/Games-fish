@@ -1232,56 +1232,117 @@ function drawFishCartoon(fish, isPlayer = false) {
     }
   }
 
+  if (dangerous && !(species.finStyle?.includes("spinyDorsal") || species.finStyle?.includes("longDorsal"))) {
+    ctx.fillStyle = palette.secondary || palette.main;
+    const spikes = 3;
+    for (let i = 0; i < spikes; i += 1) {
+      const t = i / (spikes - 1 || 1);
+      const x = bodyCx + bodyRx * (0.05 + t * 0.55);
+      const h = bodyRy * (0.55 + rand() * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(x - radius * 0.2, -bodyRy * 0.78);
+      ctx.lineTo(x + radius * 0.02, -bodyRy - h);
+      ctx.lineTo(x + radius * 0.22, -bodyRy * 0.76);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  const expression = dangerous ? 1 : 0;
+  const open = clamp(0.2 + Math.abs(wag) / Math.max(1, radius) + (dangerous ? 0.35 : 0.55), 0.35, 1.15);
+  const blink = Math.max(0, Math.sin(waveSource * 3.6 + seed * 0.00001));
+  const eyeWobble = Math.sin(waveSource * 2.8 + seed * 0.00002) * radius * 0.02;
+
   const eyeX = bodyCx + bodyRx * 0.62;
-  const eyeY = -bodyRy * 0.18;
-  const eyeR = Math.max(3.5, radius * 0.22);
-  const pupilR = Math.max(2.2, radius * 0.11);
-  const gaze = dangerous ? 0.06 : 0.03;
+  const eyeY = -bodyRy * (dangerous ? 0.22 : 0.18) + eyeWobble;
+  const eyeR = Math.max(4.2, radius * (dangerous ? 0.2 : 0.24));
+  const pupilR = Math.max(2.6, radius * 0.115);
+  const gaze = dangerous ? 0.08 : 0.04;
 
   ctx.fillStyle = "#ffffff";
   ctx.beginPath();
-  ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.ellipse(eyeX, eyeY, eyeR, eyeR * (0.75 + blink * 0.25), 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.stroke();
 
   ctx.fillStyle = "#08141f";
   ctx.beginPath();
-  ctx.arc(eyeX + radius * gaze, eyeY + radius * 0.02, pupilR, 0, Math.PI * 2);
+  ctx.arc(eyeX + radius * gaze, eyeY + radius * 0.03, pupilR, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
   ctx.beginPath();
-  ctx.arc(eyeX - pupilR * 0.35, eyeY - pupilR * 0.35, Math.max(1.2, pupilR * 0.45), 0, Math.PI * 2);
+  ctx.arc(eyeX - pupilR * 0.35, eyeY - pupilR * 0.35, Math.max(1.3, pupilR * 0.5), 0, Math.PI * 2);
   ctx.fill();
 
   ctx.strokeStyle = outline;
-  ctx.lineWidth = Math.max(2, radius * 0.06);
+  ctx.lineWidth = Math.max(2, radius * 0.065);
   ctx.beginPath();
-  if (dangerous) ctx.arc(bodyCx + bodyRx * 0.78, bodyRy * 0.1, radius * 0.24, -0.9, -0.1);
-  else ctx.arc(bodyCx + bodyRx * 0.78, bodyRy * 0.18, radius * 0.24, 0.1, 0.9);
+  if (dangerous) {
+    ctx.moveTo(eyeX - eyeR * 1.05, eyeY - eyeR * 1.2);
+    ctx.lineTo(eyeX + eyeR * 0.75, eyeY - eyeR * 0.55);
+  } else {
+    ctx.moveTo(eyeX - eyeR * 0.95, eyeY - eyeR * 1.05);
+    ctx.quadraticCurveTo(eyeX + eyeR * 0.2, eyeY - eyeR * 1.45, eyeX + eyeR * 0.95, eyeY - eyeR * 0.85);
+  }
   ctx.stroke();
 
-  if (dangerous) {
-    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
-    const teeth = 5;
-    const mouthCx = bodyCx + bodyRx * 0.78;
-    const mouthCy = bodyRy * 0.1;
-    for (let i = 0; i < teeth; i += 1) {
-      const t = i / (teeth - 1 || 1);
-      const x = mouthCx - radius * 0.14 + t * radius * 0.28;
-      ctx.beginPath();
-      ctx.moveTo(x, mouthCy + radius * 0.18);
-      ctx.lineTo(x - radius * 0.05, mouthCy + radius * 0.05);
-      ctx.lineTo(x + radius * 0.05, mouthCy + radius * 0.05);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
+  const mouthCx = bodyCx + bodyRx * 0.82;
+  const mouthCy = bodyRy * (dangerous ? 0.08 : 0.22);
+  const mouthR = radius * (dangerous ? 0.42 : 0.5);
+  const mouthW = radius * (dangerous ? 0.62 : 0.7);
+  const mouthH = radius * open * (dangerous ? 0.58 : 0.62);
+
+  ctx.fillStyle = "rgba(6, 12, 18, 0.85)";
+  ctx.beginPath();
+  ctx.ellipse(mouthCx, mouthCy, mouthW, mouthH, dangerous ? 0.1 : 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  if (!dangerous) {
+    ctx.fillStyle = "rgba(255, 120, 160, 0.9)";
     ctx.beginPath();
-    ctx.moveTo(eyeX - eyeR * 0.9, eyeY - eyeR * 1.15);
-    ctx.lineTo(eyeX + eyeR * 0.65, eyeY - eyeR * 0.8);
+    ctx.ellipse(mouthCx + mouthW * 0.12, mouthCy + mouthH * 0.25, mouthW * 0.38, mouthH * 0.33, 0.2, 0, Math.PI * 2);
+    ctx.fill();
     ctx.stroke();
   }
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  const teethTop = dangerous ? 7 : 4;
+  const teethBottom = dangerous ? 5 : 3;
+  for (let i = 0; i < teethTop; i += 1) {
+    const t = (i + 0.5) / teethTop;
+    const x = mouthCx - mouthW * 0.7 + t * mouthW * 1.4;
+    const y = mouthCy - mouthH * 0.75 + Math.sin(t * Math.PI) * mouthH * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - radius * 0.055, y + radius * 0.16);
+    ctx.lineTo(x + radius * 0.055, y + radius * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  for (let i = 0; i < teethBottom; i += 1) {
+    const t = (i + 0.5) / teethBottom;
+    const x = mouthCx - mouthW * 0.62 + t * mouthW * 1.24;
+    const y = mouthCy + mouthH * 0.72 - Math.sin(t * Math.PI) * mouthH * 0.05;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - radius * 0.05, y - radius * 0.14);
+    ctx.lineTo(x + radius * 0.05, y - radius * 0.14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = dangerous ? "rgba(255, 120, 120, 0.45)" : "rgba(255, 120, 170, 0.45)";
+  ctx.beginPath();
+  ctx.arc(bodyCx + bodyRx * 0.54, bodyRy * 0.14, radius * 0.14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bodyCx + bodyRx * 0.46, -bodyRy * 0.02, radius * 0.11, 0, Math.PI * 2);
+  ctx.fill();
 
   if (species.finStyle?.includes("whiskers") || species.extras?.barbels) {
     const count = species.extras?.barbels || 4;

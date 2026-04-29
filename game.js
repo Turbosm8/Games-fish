@@ -764,7 +764,7 @@ function drawScaleTexture(bodyPath, halfLength, halfHeight, radius, density, alp
   ctx.restore();
 }
 
-function drawFish(fish, isPlayer = false) {
+function drawFishRealistic(fish, isPlayer = false) {
   const direction = isPlayer ? Math.cos(player.angle) >= 0 ? 1 : -1 : fish.direction;
   const radius = fish.radius;
   const dangerous = !isPlayer && !fish.edible;
@@ -1063,6 +1063,284 @@ function drawFish(fish, isPlayer = false) {
   }
 
   ctx.restore();
+}
+
+const FISH_RENDER_STYLE = "cartoon";
+
+function drawFishCartoon(fish, isPlayer = false) {
+  const direction = isPlayer ? Math.cos(player.angle) >= 0 ? 1 : -1 : fish.direction;
+  const radius = fish.radius;
+  const dangerous = !isPlayer && !fish.edible;
+  const species = (isPlayer ? playerSpecies : fish.species) || playerSpecies;
+  const seed = fish.seed || 1;
+  const rand = mulberry32(seed);
+  const waveSource = fish.wave || performance.now() * 0.004;
+  const wag = Math.sin(waveSource * 2.4) * radius * 0.12;
+
+  const outline = "rgba(0, 0, 0, 0.6)";
+  const lineWidth = Math.max(2, radius * 0.07);
+  const palette = isPlayer
+    ? { main: "#18e0ff", secondary: "#0674ff", accent: "#f7ffff" }
+    : species.palette || { main: fish.color, secondary: fish.color, accent: "#ffffff" };
+
+  ctx.save();
+  ctx.translate(fish.x, fish.y);
+  if (isPlayer) ctx.rotate(player.angle);
+  else if (direction < 0) ctx.scale(-1, 1);
+
+  const bodyRx = radius * Math.max(1.2, species.bodyRatio * 0.68);
+  const bodyRy = radius * 0.82;
+  const bodyCx = radius * 0.15;
+  const tailBaseX = bodyCx - bodyRx * 0.92;
+  const tailLen = Math.max(radius * 0.9, bodyRx * (species.tailSize || 0.22));
+  const tailHalfH = bodyRy * 0.75;
+
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lineWidth;
+
+  ctx.fillStyle = palette.secondary || palette.main;
+  ctx.beginPath();
+  if (species.tail === "lunate" || species.tail === "forked") {
+    const notch = tailHalfH * 0.55;
+    ctx.moveTo(tailBaseX, 0);
+    ctx.lineTo(tailBaseX - tailLen, -tailHalfH + wag);
+    ctx.lineTo(tailBaseX - tailLen + notch, 0 + wag * 0.2);
+    ctx.lineTo(tailBaseX - tailLen, tailHalfH + wag);
+    ctx.closePath();
+  } else if (species.tail === "truncate") {
+    ctx.moveTo(tailBaseX, -tailHalfH);
+    ctx.lineTo(tailBaseX - tailLen, -tailHalfH * 0.85 + wag);
+    ctx.lineTo(tailBaseX - tailLen, tailHalfH * 0.85 + wag);
+    ctx.lineTo(tailBaseX, tailHalfH);
+    ctx.closePath();
+  } else if (species.tail === "pointed") {
+    ctx.moveTo(tailBaseX, -tailHalfH);
+    ctx.lineTo(tailBaseX - tailLen, 0 + wag);
+    ctx.lineTo(tailBaseX, tailHalfH);
+    ctx.closePath();
+  } else {
+    ctx.moveTo(tailBaseX, -tailHalfH);
+    ctx.quadraticCurveTo(tailBaseX - tailLen * 0.8, 0 + wag, tailBaseX, tailHalfH);
+    ctx.quadraticCurveTo(tailBaseX - tailLen * 0.25, 0 + wag * 0.5, tailBaseX, -tailHalfH);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = palette.main || fish.color;
+  ctx.beginPath();
+  ctx.ellipse(bodyCx, 0, bodyRx, bodyRy, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(bodyCx, 0, bodyRx, bodyRy, 0, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.22)";
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.05, bodyRy * 0.28, bodyRx * 0.96, bodyRy * 0.72, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = palette.accent ? `${palette.accent}` : "rgba(255, 255, 255, 0.38)";
+  ctx.globalAlpha = 0.18;
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.25, -bodyRy * 0.35, bodyRx * 0.55, bodyRy * 0.32, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  if (species.pattern && species.pattern !== "none") {
+    if (species.pattern.includes("verticalBars") || species.pattern.includes("verticalStripes")) {
+      const bars = 5;
+      ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+      for (let i = 0; i < bars; i += 1) {
+        const t = i / (bars - 1);
+        const x = bodyCx - bodyRx * 0.6 + t * bodyRx * 1.15;
+        ctx.fillRect(x - radius * 0.12, -bodyRy, radius * 0.16, bodyRy * 2);
+      }
+    } else if (species.pattern === "3WhiteBands") {
+      const bands = [-0.32, 0.02, 0.33];
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      for (const band of bands) {
+        const x = bodyCx + band * bodyRx * 0.95;
+        ctx.fillRect(x - bodyRx * 0.14, -bodyRy, bodyRx * 0.2, bodyRy * 2);
+      }
+    } else if (species.pattern.includes("speckles") || species.pattern === "sparseSpots") {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.14)";
+      const dots = species.pattern.includes("speckles") ? 14 : 9;
+      for (let i = 0; i < dots; i += 1) {
+        const x = bodyCx - bodyRx * 0.55 + rand() * bodyRx * 1.05;
+        const y = -bodyRy * 0.5 + rand() * bodyRy * 1.0;
+        const r = Math.max(1.2, radius * (0.05 + rand() * 0.04));
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (species.pattern === "wavyBackStripes") {
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.22)";
+      ctx.lineWidth = Math.max(1.5, radius * 0.04);
+      for (let i = 0; i < 4; i += 1) {
+        const y = -bodyRy * 0.55 + i * bodyRy * 0.25;
+        ctx.beginPath();
+        for (let x = bodyCx - bodyRx * 0.65; x <= bodyCx + bodyRx * 0.25; x += radius * 0.55) {
+          const wave = Math.sin(x * 0.05 + i * 1.2 + waveSource * 3) * radius * 0.1;
+          if (x === bodyCx - bodyRx * 0.65) ctx.moveTo(x, y + wave);
+          else ctx.lineTo(x, y + wave);
+        }
+        ctx.stroke();
+      }
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = lineWidth;
+    } else if (species.pattern === "metallic" || species.pattern.includes("Scales")) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+      ctx.lineWidth = Math.max(1, radius * 0.03);
+      for (let i = 0; i < 6; i += 1) {
+        const y = -bodyRy * 0.45 + i * bodyRy * 0.18;
+        ctx.beginPath();
+        ctx.arc(bodyCx - bodyRx * 0.15, y, radius * 0.55, Math.PI * 1.08, Math.PI * 1.92);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = outline;
+      ctx.lineWidth = lineWidth;
+    }
+  }
+  ctx.restore();
+
+  ctx.fillStyle = `rgba(255, 255, 255, ${dangerous ? 0.55 : 0.35})`;
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.1, bodyRy * 0.35, bodyRx * 0.22, bodyRy * 0.18, -0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  if (species.finStyle?.includes("spinyDorsal") || species.finStyle?.includes("longDorsal")) {
+    const spikes = species.finStyle.includes("spinyDorsal") ? 4 : 2;
+    ctx.fillStyle = palette.secondary || palette.main;
+    for (let i = 0; i < spikes; i += 1) {
+      const t = i / (spikes - 1 || 1);
+      const x = bodyCx - bodyRx * 0.1 + t * bodyRx * 0.7;
+      const h = bodyRy * (species.finStyle.includes("spinyDorsal") ? 0.55 : 0.75) * (0.9 + rand() * 0.2);
+      ctx.beginPath();
+      ctx.moveTo(x - radius * 0.22, -bodyRy * 0.8);
+      ctx.lineTo(x + radius * 0.06, -bodyRy - h);
+      ctx.lineTo(x + radius * 0.26, -bodyRy * 0.78);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  const eyeX = bodyCx + bodyRx * 0.62;
+  const eyeY = -bodyRy * 0.18;
+  const eyeR = Math.max(3.5, radius * 0.22);
+  const pupilR = Math.max(2.2, radius * 0.11);
+  const gaze = dangerous ? 0.06 : 0.03;
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(eyeX, eyeY, eyeR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#08141f";
+  ctx.beginPath();
+  ctx.arc(eyeX + radius * gaze, eyeY + radius * 0.02, pupilR, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.beginPath();
+  ctx.arc(eyeX - pupilR * 0.35, eyeY - pupilR * 0.35, Math.max(1.2, pupilR * 0.45), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = Math.max(2, radius * 0.06);
+  ctx.beginPath();
+  if (dangerous) ctx.arc(bodyCx + bodyRx * 0.78, bodyRy * 0.1, radius * 0.24, -0.9, -0.1);
+  else ctx.arc(bodyCx + bodyRx * 0.78, bodyRy * 0.18, radius * 0.24, 0.1, 0.9);
+  ctx.stroke();
+
+  if (dangerous) {
+    ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+    const teeth = 5;
+    const mouthCx = bodyCx + bodyRx * 0.78;
+    const mouthCy = bodyRy * 0.1;
+    for (let i = 0; i < teeth; i += 1) {
+      const t = i / (teeth - 1 || 1);
+      const x = mouthCx - radius * 0.14 + t * radius * 0.28;
+      ctx.beginPath();
+      ctx.moveTo(x, mouthCy + radius * 0.18);
+      ctx.lineTo(x - radius * 0.05, mouthCy + radius * 0.05);
+      ctx.lineTo(x + radius * 0.05, mouthCy + radius * 0.05);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(eyeX - eyeR * 0.9, eyeY - eyeR * 1.15);
+    ctx.lineTo(eyeX + eyeR * 0.65, eyeY - eyeR * 0.8);
+    ctx.stroke();
+  }
+
+  if (species.finStyle?.includes("whiskers") || species.extras?.barbels) {
+    const count = species.extras?.barbels || 4;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.6)";
+    ctx.lineWidth = Math.max(2, radius * 0.05);
+    for (let i = 0; i < count; i += 1) {
+      const t = i / (count - 1 || 1);
+      const y = -radius * 0.05 + t * radius * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(bodyCx + bodyRx * 0.92, y);
+      ctx.quadraticCurveTo(bodyCx + bodyRx * 1.2, y - radius * 0.2, bodyCx + bodyRx * 1.45, y + radius * 0.1);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = lineWidth;
+  }
+
+  if (isPlayer) {
+    ctx.fillStyle = "#ffd95c";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = Math.max(2.2, radius * 0.07);
+    const crownY = -bodyRy * 1.05;
+    ctx.beginPath();
+    ctx.moveTo(bodyCx - radius * 0.12, crownY);
+    ctx.lineTo(bodyCx + radius * 0.02, crownY - radius * 0.38);
+    ctx.lineTo(bodyCx + radius * 0.16, crownY);
+    ctx.lineTo(bodyCx + radius * 0.3, crownY - radius * 0.32);
+    ctx.lineTo(bodyCx + radius * 0.44, crownY);
+    ctx.lineTo(bodyCx - radius * 0.12, crownY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (dangerous) {
+    ctx.strokeStyle = "rgba(255, 86, 86, 0.85)";
+    ctx.lineWidth = Math.max(2.5, radius * 0.085);
+    ctx.beginPath();
+    ctx.ellipse(bodyCx, 0, bodyRx, bodyRy, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  if (isPlayer && player.invincible > 0) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.22 + Math.sin(performance.now() * 0.016) * 0.14})`;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.ellipse(bodyCx, 0, bodyRx * 1.05, bodyRy * 1.12, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawFish(fish, isPlayer = false) {
+  if (FISH_RENDER_STYLE === "cartoon") {
+    drawFishCartoon(fish, isPlayer);
+    return;
+  }
+  drawFishRealistic(fish, isPlayer);
 }
 
 function drawPlayerMarker() {

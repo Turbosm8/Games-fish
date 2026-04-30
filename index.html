@@ -10,7 +10,7 @@
     <main class="game-shell" aria-label="大鱼吃小鱼游戏">
       <section class="topbar">
         <div>
-          <p class="eyebrow">Classic Arcade · Multiplayer</p>
+          <p class="eyebrow">Classic Arcade · Solo Ranking</p>
           <h1>大鱼吃小鱼</h1>
         </div>
         <div class="stats" aria-label="游戏状态">
@@ -51,20 +51,20 @@
           </div>
         </section>
 
-        <aside class="leaderboard" aria-label="多人排行榜">
+        <aside class="ranking-board" aria-label="最终排名">
           <div class="board-head">
             <div>
-              <p class="eyebrow">Live Scores</p>
-              <h2>实时分数</h2>
+              <p class="eyebrow">Final Ranking</p>
+              <h2>最终排名</h2>
             </div>
-            <span id="connectionStatus">连接中</span>
+            <span id="rankingStatus">连接中</span>
           </div>
           <div class="player-chip">
             <span>你的玩家</span>
             <strong id="playerId">识别中</strong>
           </div>
-          <ol id="leaderboardList" class="rank-list">
-            <li class="empty-rank">等待玩家加入</li>
+          <ol id="rankingList" class="rank-list">
+            <li class="empty-rank">完成一局后生成最终排名</li>
           </ol>
         </aside>
       </section>
@@ -76,6 +76,6 @@
       </section>
     </main>
 
-    <script src="./game.js?v=202604292015"></script>
+    <script src="./game.js?v=202604301745"></script>
   </body>
 </html>

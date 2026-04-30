@@ -13,18 +13,15 @@ const roundRankingEl = document.querySelector("#roundRanking");
 const startBtn = document.querySelector("#startBtn");
 const pauseBtn = document.querySelector("#pauseBtn");
 const restartBtn = document.querySelector("#restartBtn");
-const connectionStatusEl = document.querySelector("#connectionStatus");
+const rankingStatusEl = document.querySelector("#rankingStatus");
 const playerIdEl = document.querySelector("#playerId");
-const leaderboardListEl = document.querySelector("#leaderboardList");
+const rankingListEl = document.querySelector("#rankingList");
 
-const multiplayer = {
+const rankingState = {
   enabled: location.protocol !== "file:",
-  playerId: null,
-  playerLabel: "本地玩家",
-  lastScoreSync: 0,
-  syncInterval: 900,
-  latestPlayers: [],
-  latestRoundPlayers: [],
+  playerId: getOrCreatePlayerId(),
+  playerLabel: "",
+  rankings: [],
 };
 
 const BASE_RADIUS = 28;
@@ -59,6 +56,12 @@ const player = {
   speed: 360,
   angle: 0,
   targetAngle: 0,
+  facing: 1,
+  visualPitch: 0,
+  targetPitch: 0,
+  swimPhase: 0,
+  swimPower: 0,
+  mouthTimer: 0,
   invincible: 1.2,
   color: "#18e0ff",
 };
@@ -288,6 +291,24 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
+function getOrCreatePlayerId() {
+  const fallback = `player-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`;
+  try {
+    const existing = localStorage.getItem("fishPlayerId");
+    if (existing) return existing;
+    const id = globalThis.crypto?.randomUUID ? globalThis.crypto.randomUUID() : fallback;
+    localStorage.setItem("fishPlayerId", id);
+    return id;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function getPlayerLabel() {
+  const suffix = rankingState.playerId.slice(-4).toUpperCase();
+  return `玩家 ${suffix}`;
+}
+
 function resetGame() {
   world.running = true;
   world.paused = false;
@@ -308,13 +329,19 @@ function resetGame() {
   player.radius = BASE_RADIUS;
   player.speed = 360;
   player.angle = 0;
+  player.targetAngle = 0;
+  player.facing = 1;
+  player.visualPitch = 0;
+  player.targetPitch = 0;
+  player.swimPhase = 0;
+  player.swimPower = 0;
+  player.mouthTimer = 0;
   player.invincible = 1.2;
 
   makePlants();
   for (let i = 0; i < 22; i += 1) spawnFish(true);
   for (let i = 0; i < 30; i += 1) spawnBubble(true);
   updateHud();
-  reportScore(false, true);
   hideOverlay();
   pauseBtn.textContent = "暂停";
 }
@@ -391,44 +418,6 @@ function updateHud() {
   comboEl.textContent = String(world.combo);
 }
 
-function setConnectionStatus(text, online = true) {
-  connectionStatusEl.textContent = text;
-  connectionStatusEl.classList.toggle("offline", !online);
-}
-
-function renderLeaderboard(players = []) {
-  multiplayer.latestPlayers = players;
-  if (!players.length) {
-    leaderboardListEl.innerHTML = '<li class="empty-rank">等待玩家加入</li>';
-    rankEl.textContent = "-";
-    return;
-  }
-
-  const current = players.find((item) => item.id === multiplayer.playerId);
-  rankEl.textContent = current ? `#${current.rank}` : "-";
-
-  leaderboardListEl.innerHTML = players
-    .slice(0, 12)
-    .map((item) => {
-      const isYou = item.id === multiplayer.playerId;
-      const state = item.online ? "在线" : "离线";
-      return `
-        <li class="rank-row${isYou ? " is-you" : ""}">
-          <span class="rank-position">${item.rank}</span>
-          <span class="rank-player">
-            <strong>${escapeHtml(item.label)}${isYou ? " · YOU" : ""}</strong>
-            <span>${state} · 最高 ${item.bestScore}</span>
-          </span>
-          <span class="rank-score">
-            <strong>${item.currentScore}</strong>
-            <span>当前分</span>
-          </span>
-        </li>
-      `;
-    })
-    .join("");
-}
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -438,98 +427,56 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-async function fetchMultiplayerState() {
-  if (!multiplayer.enabled) {
-    setConnectionStatus("本地模式", false);
-    playerIdEl.textContent = "启动服务器后开启多人";
+function setRankingStatus(text, online = true) {
+  rankingStatusEl.textContent = text;
+  rankingStatusEl.classList.toggle("offline", !online);
+}
+
+function renderRankings(rankings = [], updateHudRank = true) {
+  rankingState.rankings = rankings || [];
+  const current = rankingState.rankings.find((item) => item.id === rankingState.playerId);
+  if (updateHudRank) rankEl.textContent = current ? `#${current.rank}` : "-";
+
+  const rows = rankingState.rankings.slice(0, 12);
+  if (!rows.length) {
+    rankingListEl.innerHTML = '<li class="empty-rank">完成一局后生成最终排名</li>';
     return;
   }
 
-  try {
-    const response = await fetch("/api/me", { cache: "no-store" });
-    if (response.status === 404) {
-      multiplayer.enabled = false;
-      setConnectionStatus("Pages 模式", false);
-      playerIdEl.textContent = "多人需本地运行 npm start";
-      renderLeaderboard([]);
-      return;
-    }
-    if (!response.ok) throw new Error("Failed to load player");
-    const data = await response.json();
-    multiplayer.playerId = data.player.id;
-    multiplayer.playerLabel = data.player.label;
-    playerIdEl.textContent = data.player.label;
-    setConnectionStatus("已连接", true);
-    renderLeaderboard(data.players);
-    renderRoundRanking(data.roundPlayers, false);
-    connectLeaderboardStream();
-  } catch (error) {
-    setConnectionStatus("离线", false);
-    playerIdEl.textContent = "服务器不可用";
-  }
+  rankingListEl.innerHTML = rows
+    .map((item) => {
+      const isYou = item.id === rankingState.playerId;
+      return `
+        <li class="rank-row${isYou ? " is-you" : ""}">
+          <span class="rank-position">${item.rank}</span>
+          <span class="rank-player">
+            <strong>${escapeHtml(item.label)}${isYou ? " · YOU" : ""}</strong>
+            <span>${item.games} 局 · 体型 ${Number(item.lastSize || 1).toFixed(1)}x</span>
+          </span>
+          <span class="rank-score">
+            <strong>${item.lastScore}</strong>
+            <span>最终分</span>
+          </span>
+        </li>
+      `;
+    })
+    .join("");
 }
 
-function connectLeaderboardStream() {
-  if (!multiplayer.enabled || !window.EventSource) return;
-
-  const events = new EventSource("/api/events");
-  events.addEventListener("message", (event) => {
-    const data = JSON.parse(event.data);
-    setConnectionStatus("已连接", true);
-    renderLeaderboard(data.players);
-    renderRoundRanking(data.roundPlayers, false);
-  });
-  events.addEventListener("error", () => {
-    setConnectionStatus("离线", false);
-  });
-}
-
-async function reportScore(ended = false, force = false) {
-  if (!multiplayer.enabled || !multiplayer.playerId) return;
-
-  const now = performance.now();
-  if (!force && !ended && now - multiplayer.lastScoreSync < multiplayer.syncInterval) return;
-  multiplayer.lastScoreSync = now;
-
-  try {
-    const response = await fetch("/api/score", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        score: world.score,
-        size: player.radius / BASE_RADIUS,
-        ended,
-      }),
-      keepalive: ended,
-    });
-    if (!response.ok) throw new Error("Failed to submit score");
-    const data = await response.json();
-    setConnectionStatus("已连接", true);
-    renderLeaderboard(data.players);
-    renderRoundRanking(data.roundPlayers, false);
-    return data;
-  } catch (error) {
-    setConnectionStatus("离线", false);
-  }
-}
-
-function renderRoundRanking(players = [], show = false) {
-  multiplayer.latestRoundPlayers = players || [];
-  if (!show) return;
-
-  const rows = multiplayer.latestRoundPlayers.slice(0, 8);
+function renderFinalRanking(rankings = []) {
+  const rows = (rankings || []).slice(0, 8);
   if (!rows.length) {
-    roundRankingEl.innerHTML = '<h3>本局排行榜</h3><p>等待分数同步</p>';
+    roundRankingEl.innerHTML = '<h3>最终排名</h3><p>暂无完成记录</p>';
     roundRankingEl.classList.remove("hidden");
     return;
   }
 
   roundRankingEl.innerHTML = `
-    <h3>本局排行榜</h3>
+    <h3>最终排名</h3>
     <ol>
       ${rows
         .map((item) => {
-          const isYou = item.id === multiplayer.playerId;
+          const isYou = item.id === rankingState.playerId;
           return `
             <li class="${isYou ? "is-you" : ""}">
               <span>#${item.rank} ${escapeHtml(item.label)}${isYou ? " · YOU" : ""}</span>
@@ -541,6 +488,67 @@ function renderRoundRanking(players = [], show = false) {
     </ol>
   `;
   roundRankingEl.classList.remove("hidden");
+}
+
+async function fetchRankings() {
+  rankingState.playerLabel = getPlayerLabel();
+  playerIdEl.textContent = rankingState.playerLabel;
+
+  if (!rankingState.enabled) {
+    setRankingStatus("本地模式", false);
+    renderRankings([], false);
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/rankings", { cache: "no-store" });
+    if (response.status === 404) {
+      rankingState.enabled = false;
+      setRankingStatus("未连接", false);
+      renderRankings([], false);
+      return;
+    }
+    if (!response.ok) throw new Error("Failed to load rankings");
+    const data = await response.json();
+    setRankingStatus("已连接", true);
+    renderRankings(data.rankings, true);
+  } catch (error) {
+    setRankingStatus("未连接", false);
+    renderRankings([], false);
+  }
+}
+
+async function submitFinalScore() {
+  if (!rankingState.enabled) {
+    setRankingStatus("本地模式", false);
+    renderFinalRanking([]);
+    return null;
+  }
+
+  try {
+    const response = await fetch("/api/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerId: rankingState.playerId,
+        label: rankingState.playerLabel || getPlayerLabel(),
+        score: world.score,
+        size: player.radius / BASE_RADIUS,
+      }),
+      keepalive: true,
+    });
+    if (!response.ok) throw new Error("Failed to submit final score");
+    const data = await response.json();
+    setRankingStatus("已连接", true);
+    renderRankings(data.rankings, true);
+    renderFinalRanking(data.rankings);
+    return data;
+  } catch (error) {
+    setRankingStatus("未连接", false);
+    roundRankingEl.innerHTML = "<h3>最终排名</h3><p>分数暂时无法上传，请确认服务器已启动。</p>";
+    roundRankingEl.classList.remove("hidden");
+    return null;
+  }
 }
 
 function resizePointer(event) {
@@ -560,8 +568,9 @@ function eatFish(fish) {
   player.mass += fish.radius / Math.max(16, player.radius * 0.55);
   player.radius = clamp(BASE_RADIUS * playerScaleFromMass(player.mass), BASE_RADIUS, MAX_PLAYER_RADIUS);
   player.speed = clamp(380 - player.radius * 0.95, 120, 360);
+  player.mouthTimer = 0.34;
+  player.swimPower = Math.max(player.swimPower, 0.9);
   updateHud();
-  reportScore();
 }
 
 function endGame() {
@@ -572,11 +581,9 @@ function endGame() {
     `最终得分 ${world.score}`,
     `你长到了 ${(player.radius / BASE_RADIUS).toFixed(1)}x。避开红色危险边缘的鱼，先吃更小的鱼继续成长。`,
   );
-  roundRankingEl.innerHTML = "<h3>本局排行榜</h3><p>同步分数中</p>";
+  roundRankingEl.innerHTML = "<h3>最终排名</h3><p>提交最终分数中</p>";
   roundRankingEl.classList.remove("hidden");
-  reportScore(true, true).then((data) => {
-    if (data?.roundPlayers) renderRoundRanking(data.roundPlayers, true);
-  });
+  submitFinalScore();
 }
 
 function togglePause() {
@@ -593,6 +600,7 @@ function togglePause() {
 
 function updatePlayer(dt) {
   player.invincible = Math.max(0, player.invincible - dt);
+  player.mouthTimer = Math.max(0, player.mouthTimer - dt);
   let vx = 0;
   let vy = 0;
 
@@ -618,11 +626,19 @@ function updatePlayer(dt) {
     player.x += vx * player.speed * dt;
     player.y += vy * player.speed * dt;
     player.targetAngle = Math.atan2(vy, vx);
+    player.targetPitch = clamp(Math.atan2(vy, Math.max(0.35, Math.abs(vx))) * 0.42, -0.48, 0.48);
+    if (Math.abs(vx) > 0.16) player.facing = vx >= 0 ? 1 : -1;
+    player.swimPower = Math.min(1, player.swimPower + dt * 5.5);
+  } else {
+    player.targetPitch = 0;
+    player.swimPower = Math.max(0.18, player.swimPower - dt * 2.8);
   }
 
   player.x = clamp(player.x, player.radius, world.width - player.radius);
   player.y = clamp(player.y, player.radius, world.height - player.radius);
   player.angle += Math.atan2(Math.sin(player.targetAngle - player.angle), Math.cos(player.targetAngle - player.angle)) * 0.16;
+  player.visualPitch += (player.targetPitch - player.visualPitch) * 0.16;
+  player.swimPhase += dt * (5.5 + player.swimPower * 7.5);
 }
 
 function updateFishes(dt) {
@@ -686,7 +702,6 @@ function update(dt) {
   updatePlayer(dt);
   updateFishes(dt);
   updateBubbles(dt);
-  reportScore();
 }
 
 function drawBackground(time) {
@@ -1396,6 +1411,336 @@ function drawFishCartoon(fish, isPlayer = false) {
   ctx.restore();
 }
 
+function createCartoonFishBody(bodyCx, bodyRx, bodyRy, swimBend, mouthOpen) {
+  const noseX = bodyCx + bodyRx;
+  const tailX = bodyCx - bodyRx;
+  const browLift = mouthOpen * bodyRy * 0.1;
+  const jawDrop = mouthOpen * bodyRy * 0.18;
+  const path = new Path2D();
+  path.moveTo(noseX, -bodyRy * (0.18 + mouthOpen * 0.14));
+  path.bezierCurveTo(
+    bodyCx + bodyRx * 0.72,
+    -bodyRy * 0.92 - browLift,
+    bodyCx - bodyRx * 0.1,
+    -bodyRy * 0.98 + swimBend * 0.35,
+    tailX + bodyRx * 0.14,
+    -bodyRy * 0.48 + swimBend,
+  );
+  path.bezierCurveTo(tailX - bodyRx * 0.04, -bodyRy * 0.22 + swimBend, tailX - bodyRx * 0.04, bodyRy * 0.22 + swimBend, tailX + bodyRx * 0.14, bodyRy * 0.48 + swimBend);
+  path.bezierCurveTo(
+    bodyCx - bodyRx * 0.06,
+    bodyRy * 1.02 + swimBend * 0.25,
+    bodyCx + bodyRx * 0.68,
+    bodyRy * 0.9 + jawDrop,
+    noseX,
+    bodyRy * (0.22 + mouthOpen * 0.24),
+  );
+  path.quadraticCurveTo(noseX + bodyRx * 0.08, bodyRy * 0.02, noseX, -bodyRy * (0.18 + mouthOpen * 0.14));
+  path.closePath();
+  return path;
+}
+
+function drawFishCartoon(fish, isPlayer = false) {
+  const radius = fish.radius;
+  const dangerous = !isPlayer && !fish.edible;
+  const species = (isPlayer ? playerSpecies : fish.species) || playerSpecies;
+  const seed = fish.seed || 1;
+  const rand = mulberry32(seed);
+  const waveSource = isPlayer ? player.swimPhase : fish.wave || performance.now() * 0.004;
+  const swimPower = isPlayer ? player.swimPower : 0.72;
+  const swimBend = Math.sin(waveSource) * radius * 0.18 * swimPower;
+  const tailWag = Math.sin(waveSource + Math.PI * 0.55) * radius * 0.42 * swimPower;
+  const bite = isPlayer ? clamp(player.mouthTimer / 0.34, 0, 1) : dangerous ? 0.3 : 0.04;
+  const mouthOpen = clamp(bite * bite * 1.15 + (dangerous ? 0.32 : 0), 0.04, 1.18);
+  const outline = "rgba(4, 12, 18, 0.72)";
+  const lineWidth = Math.max(2.2, radius * 0.072);
+  const palette = isPlayer
+    ? { main: "#18e0ff", secondary: "#0674ff", accent: "#f7ffff" }
+    : species.palette || { main: fish.color, secondary: fish.color, accent: "#ffffff" };
+
+  ctx.save();
+  ctx.translate(fish.x, fish.y);
+  if (isPlayer) {
+    ctx.scale(player.facing, 1);
+    ctx.rotate(player.visualPitch);
+  } else if (fish.direction < 0) {
+    ctx.scale(-1, 1);
+  }
+
+  const bodyRx = radius * Math.max(1.28, Math.min(2.65, species.bodyRatio * 0.62));
+  const bodyRy = radius * (isPlayer ? 0.86 : dangerous ? 0.9 : 0.82);
+  const bodyCx = radius * 0.1;
+  const noseX = bodyCx + bodyRx;
+  const tailBaseX = bodyCx - bodyRx * 0.9;
+  const tailLen = Math.max(radius * 1.0, bodyRx * (species.tailSize || 0.22));
+  const tailHalfH = bodyRy * (species.tail === "lunate" ? 0.9 : 0.72);
+  const bodyPath = createCartoonFishBody(bodyCx, bodyRx, bodyRy, swimBend * 0.34, mouthOpen);
+
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = lineWidth;
+
+  ctx.fillStyle = palette.secondary || palette.main;
+  ctx.beginPath();
+  if (species.tail === "lunate" || species.tail === "forked") {
+    const notch = tailHalfH * 0.55;
+    ctx.moveTo(tailBaseX, swimBend * 0.25);
+    ctx.lineTo(tailBaseX - tailLen, -tailHalfH + tailWag);
+    ctx.lineTo(tailBaseX - tailLen + notch, tailWag * 0.24);
+    ctx.lineTo(tailBaseX - tailLen, tailHalfH + tailWag);
+  } else if (species.tail === "truncate") {
+    ctx.moveTo(tailBaseX, -tailHalfH + swimBend * 0.2);
+    ctx.lineTo(tailBaseX - tailLen, -tailHalfH * 0.82 + tailWag);
+    ctx.lineTo(tailBaseX - tailLen, tailHalfH * 0.82 + tailWag);
+    ctx.lineTo(tailBaseX, tailHalfH + swimBend * 0.2);
+  } else {
+    ctx.moveTo(tailBaseX, -tailHalfH + swimBend * 0.2);
+    ctx.quadraticCurveTo(tailBaseX - tailLen * 0.9, tailWag, tailBaseX, tailHalfH + swimBend * 0.2);
+    ctx.quadraticCurveTo(tailBaseX - tailLen * 0.24, tailWag * 0.45, tailBaseX, -tailHalfH + swimBend * 0.2);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  const bodyGradient = ctx.createLinearGradient(noseX, -bodyRy, bodyCx - bodyRx, bodyRy);
+  bodyGradient.addColorStop(0, isPlayer ? "#f7ffff" : palette.accent || palette.main);
+  bodyGradient.addColorStop(0.28, palette.main || fish.color);
+  bodyGradient.addColorStop(1, palette.secondary || palette.main || fish.color);
+  ctx.fillStyle = bodyGradient;
+  if (isPlayer) {
+    ctx.shadowColor = "rgba(24, 224, 255, 0.55)";
+    ctx.shadowBlur = 18;
+  }
+  ctx.fill(bodyPath);
+  ctx.stroke(bodyPath);
+  ctx.shadowBlur = 0;
+
+  ctx.save();
+  ctx.clip(bodyPath);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.24)";
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.08, bodyRy * 0.34, bodyRx * 0.92, bodyRy * 0.58, 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.24, -bodyRy * 0.4, bodyRx * 0.48, bodyRy * 0.22, -0.16, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (species.pattern && species.pattern !== "none") {
+    if (species.pattern.includes("verticalBars") || species.pattern.includes("verticalStripes")) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+      for (let i = 0; i < 5; i += 1) {
+        const x = bodyCx - bodyRx * 0.55 + (i / 4) * bodyRx * 1.05;
+        ctx.fillRect(x - radius * 0.11, -bodyRy, radius * 0.17, bodyRy * 2.1);
+      }
+    } else if (species.pattern === "3WhiteBands") {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.94)";
+      for (const band of [-0.33, 0.02, 0.34]) {
+        const x = bodyCx + band * bodyRx;
+        ctx.fillRect(x - bodyRx * 0.13, -bodyRy * 1.05, bodyRx * 0.2, bodyRy * 2.1);
+      }
+    } else if (species.pattern.includes("speckles") || species.pattern === "sparseSpots") {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.16)";
+      const dots = species.pattern.includes("speckles") ? 15 : 9;
+      for (let i = 0; i < dots; i += 1) {
+        ctx.beginPath();
+        ctx.arc(bodyCx - bodyRx * 0.55 + rand() * bodyRx * 1.08, -bodyRy * 0.48 + rand() * bodyRy * 0.95, Math.max(1.5, radius * (0.045 + rand() * 0.035)), 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (species.pattern === "wavyBackStripes") {
+      ctx.strokeStyle = "rgba(0, 0, 0, 0.24)";
+      ctx.lineWidth = Math.max(1.5, radius * 0.038);
+      for (let i = 0; i < 4; i += 1) {
+        const y = -bodyRy * 0.58 + i * bodyRy * 0.22;
+        ctx.beginPath();
+        for (let x = bodyCx - bodyRx * 0.64; x <= bodyCx + bodyRx * 0.28; x += radius * 0.5) {
+          const wave = Math.sin(x * 0.05 + i * 1.2 + waveSource * 2.8) * radius * 0.09;
+          if (x === bodyCx - bodyRx * 0.64) ctx.moveTo(x, y + wave);
+          else ctx.lineTo(x, y + wave);
+        }
+        ctx.stroke();
+      }
+    } else if (species.pattern === "metallic" || species.pattern.includes("Scales")) {
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+      ctx.lineWidth = Math.max(1, radius * 0.026);
+      for (let i = 0; i < 6; i += 1) {
+        const y = -bodyRy * 0.44 + i * bodyRy * 0.18;
+        ctx.beginPath();
+        ctx.arc(bodyCx - bodyRx * 0.12, y, radius * 0.56, Math.PI * 1.06, Math.PI * 1.92);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  ctx.fillStyle = `rgba(255, 255, 255, ${dangerous ? 0.52 : 0.36})`;
+  ctx.beginPath();
+  ctx.ellipse(bodyCx + bodyRx * 0.02, bodyRy * 0.42 + swimBend * 0.12, bodyRx * 0.22, bodyRy * 0.17, -0.62 + swimBend * 0.004, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = palette.secondary || palette.main;
+  ctx.beginPath();
+  ctx.moveTo(bodyCx - bodyRx * 0.18, -bodyRy * 0.76 + swimBend * 0.12);
+  ctx.quadraticCurveTo(bodyCx + bodyRx * 0.2, -bodyRy * 1.35 - Math.abs(swimBend) * 0.35, bodyCx + bodyRx * 0.48, -bodyRy * 0.78);
+  ctx.quadraticCurveTo(bodyCx + bodyRx * 0.1, -bodyRy * 0.98, bodyCx - bodyRx * 0.18, -bodyRy * 0.76 + swimBend * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  if (dangerous) {
+    ctx.fillStyle = palette.secondary || palette.main;
+    for (let i = 0; i < 3; i += 1) {
+      const x = bodyCx + bodyRx * (0.0 + i * 0.22);
+      ctx.beginPath();
+      ctx.moveTo(x, -bodyRy * 0.82);
+      ctx.lineTo(x + radius * 0.08, -bodyRy * (1.28 + rand() * 0.22));
+      ctx.lineTo(x + radius * 0.24, -bodyRy * 0.8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  const eyeX = bodyCx + bodyRx * 0.58;
+  const eyeY = -bodyRy * 0.22 + Math.sin(waveSource * 1.7 + seed * 0.00001) * radius * 0.025;
+  const eyeR = Math.max(4.5, radius * (dangerous ? 0.2 : 0.24));
+  const pupilR = Math.max(2.4, radius * 0.105);
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.ellipse(eyeX, eyeY, eyeR, eyeR * 0.88, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#07131d";
+  ctx.beginPath();
+  ctx.arc(eyeX + radius * 0.05, eyeY + radius * 0.02, pupilR, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+  ctx.beginPath();
+  ctx.arc(eyeX - pupilR * 0.35, eyeY - pupilR * 0.36, Math.max(1.3, pupilR * 0.48), 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = Math.max(2, radius * 0.06);
+  ctx.beginPath();
+  if (dangerous) {
+    ctx.moveTo(eyeX - eyeR * 1.0, eyeY - eyeR * 1.0);
+    ctx.lineTo(eyeX + eyeR * 0.88, eyeY - eyeR * 0.5);
+  } else {
+    ctx.moveTo(eyeX - eyeR * 0.9, eyeY - eyeR * 1.02);
+    ctx.quadraticCurveTo(eyeX + eyeR * 0.08, eyeY - eyeR * 1.38, eyeX + eyeR * 0.92, eyeY - eyeR * 0.86);
+  }
+  ctx.stroke();
+
+  const mouthCx = noseX - radius * (0.16 + mouthOpen * 0.04);
+  const mouthCy = bodyRy * (0.17 + mouthOpen * 0.05);
+  const mouthW = radius * (0.22 + mouthOpen * (dangerous ? 0.42 : 0.66));
+  const mouthH = radius * (0.08 + mouthOpen * (dangerous ? 0.42 : 0.72));
+  ctx.fillStyle = "rgba(5, 12, 17, 0.9)";
+  ctx.beginPath();
+  ctx.ellipse(mouthCx, mouthCy, mouthW, mouthH, 0.03, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  if (mouthOpen > 0.25) {
+    ctx.fillStyle = "rgba(255, 110, 150, 0.92)";
+    ctx.beginPath();
+    ctx.ellipse(mouthCx + mouthW * 0.1, mouthCy + mouthH * 0.3, mouthW * 0.38, mouthH * 0.28, 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  const teethTop = dangerous ? 6 : bite > 0 ? 5 : 0;
+  const teethBottom = dangerous ? 4 : bite > 0 ? 3 : 0;
+  ctx.fillStyle = "rgba(255, 255, 255, 0.96)";
+  for (let i = 0; i < teethTop; i += 1) {
+    const t = (i + 0.5) / teethTop;
+    const x = mouthCx - mouthW * 0.72 + t * mouthW * 1.44;
+    const y = mouthCy - mouthH * 0.74 + Math.sin(t * Math.PI) * mouthH * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - radius * 0.055, y + radius * 0.16);
+    ctx.lineTo(x + radius * 0.055, y + radius * 0.16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  for (let i = 0; i < teethBottom; i += 1) {
+    const t = (i + 0.5) / teethBottom;
+    const x = mouthCx - mouthW * 0.62 + t * mouthW * 1.24;
+    const y = mouthCy + mouthH * 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - radius * 0.05, y - radius * 0.14);
+    ctx.lineTo(x + radius * 0.05, y - radius * 0.14);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (bite > 0.2) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 * bite})`;
+    ctx.lineWidth = Math.max(1.6, radius * 0.045);
+    for (let i = 0; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.arc(noseX + radius * (0.14 + i * 0.18), mouthCy, radius * (0.34 + i * 0.14) * bite, -0.85, 0.85);
+      ctx.stroke();
+    }
+  }
+
+  ctx.fillStyle = dangerous ? "rgba(255, 110, 110, 0.5)" : "rgba(255, 124, 170, 0.46)";
+  ctx.beginPath();
+  ctx.arc(bodyCx + bodyRx * 0.42, bodyRy * 0.12, radius * 0.13, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (species.finStyle?.includes("whiskers") || species.extras?.barbels) {
+    const count = species.extras?.barbels || 4;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.62)";
+    ctx.lineWidth = Math.max(2, radius * 0.048);
+    for (let i = 0; i < count; i += 1) {
+      const y = -radius * 0.04 + (i / (count - 1 || 1)) * radius * 0.24;
+      ctx.beginPath();
+      ctx.moveTo(noseX - radius * 0.04, y);
+      ctx.quadraticCurveTo(noseX + radius * 0.36, y - radius * 0.18, noseX + radius * 0.78, y + radius * 0.12);
+      ctx.stroke();
+    }
+  }
+
+  if (isPlayer) {
+    ctx.fillStyle = "#ffd95c";
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = Math.max(2.2, radius * 0.066);
+    const crownX = bodyCx + bodyRx * 0.05;
+    const crownY = -bodyRy * 1.02 + swimBend * 0.04;
+    ctx.beginPath();
+    ctx.moveTo(crownX - radius * 0.34, crownY);
+    ctx.lineTo(crownX - radius * 0.18, crownY - radius * 0.38);
+    ctx.lineTo(crownX, crownY - radius * 0.05);
+    ctx.lineTo(crownX + radius * 0.18, crownY - radius * 0.42);
+    ctx.lineTo(crownX + radius * 0.36, crownY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  if (dangerous) {
+    ctx.strokeStyle = "rgba(255, 86, 86, 0.85)";
+    ctx.lineWidth = Math.max(2.5, radius * 0.08);
+    ctx.stroke(bodyPath);
+  }
+
+  if (isPlayer && player.invincible > 0) {
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.22 + Math.sin(performance.now() * 0.016) * 0.14})`;
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.ellipse(bodyCx, 0, bodyRx * 1.08, bodyRy * 1.2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
 function drawFish(fish, isPlayer = false) {
   if (FISH_RENDER_STYLE === "cartoon") {
     drawFishCartoon(fish, isPlayer);
@@ -1520,6 +1865,6 @@ restartBtn.addEventListener("click", resetGame);
 makePlants();
 for (let i = 0; i < 18; i += 1) spawnFish(true);
 for (let i = 0; i < 24; i += 1) spawnBubble(true);
-fetchMultiplayerState();
+fetchRankings();
 draw(performance.now());
 requestAnimationFrame(loop);

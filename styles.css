@@ -258,7 +258,7 @@ canvas {
   line-height: 1.4;
 }
 
-.leaderboard {
+.ranking-board {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);
   gap: 12px;
@@ -283,7 +283,7 @@ canvas {
   line-height: 1;
 }
 
-#connectionStatus {
+#rankingStatus {
   flex: 0 0 auto;
   border: 1px solid rgba(67, 217, 173, 0.35);
   border-radius: 999px;
@@ -293,7 +293,7 @@ canvas {
   font-weight: 800;
 }
 
-#connectionStatus.offline {
+#rankingStatus.offline {
   border-color: rgba(255, 107, 107, 0.4);
   color: var(--danger);
 }
@@ -420,7 +420,7 @@ canvas {
     min-height: 520px;
   }
 
-  .leaderboard {
+  .ranking-board {
     max-height: 360px;
   }
 
